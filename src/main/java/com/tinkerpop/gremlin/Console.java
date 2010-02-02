@@ -1,5 +1,6 @@
 package com.tinkerpop.gremlin;
 
+import com.tinkerpop.gremlin.model.Element;
 import com.tinkerpop.gremlin.statements.EvaluationException;
 import com.tinkerpop.gremlin.statements.SyntaxException;
 import jline.ConsoleReader;
@@ -20,14 +21,22 @@ public class Console {
 
     private static final String INDENT = "         ";
     private static final int TAB_LENGTH = 2;
-    private static final String PRINT_RETURN = "==>";
-    private static final String MAP_EQUALS = "=";
     private static final String PROMPT = "gremlin> ";
     private static final String QUIT = "quit";
     private static final String SINGLE_SPACE = " ";
     private static final String EMPTY_STRING = "";
     private static final String SYNTAX_ERROR = "Syntax error: ";
     private static final String EVALUATION_ERROR = "Evaluation error: ";
+    private static final ElementPropertyHandler pathPropertyHandler = new ElementPropertyHandler() {
+        public void setProperty(Object object, String propertyName, Object value) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Object getProperty(Object object, String key) {
+            return containsProperty(key) ? super.getProperty(object,key) : null;
+        }
+    };
     //private static final String GREMLIN_VERSION = "0.1";
 
 
@@ -62,40 +71,54 @@ public class Console {
                 line = reader.readLine(PROMPT);
                 if (null == line || line.equalsIgnoreCase(QUIT)) {
                     if (null == line) {
-                        System.out.println();
+                        output.println();
                     }
                     break;
                 }
             }
             if (line.length() > 0) {
                 try {
-                    List results = gremlinEvaluator.evaluate(line);
-                    if (null != results) {
-                        if (results.size() > 0) {
-                            if (results.size() == 1 && results.get(0) instanceof Map) {
-                                Map map = (Map) results.get(0);
-                                for (Object key : map.keySet()) {
-                                    output.println(PRINT_RETURN + key + MAP_EQUALS + map.get(key));
-                                }
-                            } else {
-                                for (Object o : results) {
-                                    output.println(PRINT_RETURN + o);
-                                }
-                            }
-                        }
-                    }
+                    printResults(output, gremlinEvaluator.evaluate(line));
                 } catch (JXPathException e) {
-                    output.println(e.getMessage());
+                    exception(output, null, e);
                 } catch (SyntaxException e) {
-                    output.println(SYNTAX_ERROR + e.getMessage());
+                    exception(output, SYNTAX_ERROR, e);
                 } catch (EvaluationException e) {
-                    output.println(EVALUATION_ERROR + e.getMessage());
+                    exception(output, EVALUATION_ERROR, e);
                 } catch (Exception e) {
-                    output.println(e.getMessage());
+                    exception(output, null, e);
                 }
             }
         }
     }
+
+    private static void exception(PrintStream output, String prefix, Exception e) {
+        output.println("EX: " + (prefix != null ? prefix : "") + e.getMessage());
+    }
+
+    private static void printResults(PrintStream output, List results) {
+        if (null == results || results.isEmpty()) return;
+
+        if (results.size() == 1 && results.get(0) instanceof Map) {
+            Map<Object,Object> map = (Map) results.get(0);
+            for (Map.Entry entry : map.entrySet()) {
+                output.printf("==> %s = %s%n",toString(entry.getKey()),toString(map.get(entry.getValue())));
+            }
+        } else {
+            for (Object value : results) {
+                output.printf("==> %s%n",toString(value));
+            }
+        }
+    }
+
+    public static String toString(Object value) {
+        if (value == null) return "null";
+        final String stringValue = value.toString();
+        if (!(value instanceof Element)) return stringValue;
+        final Object toString = pathPropertyHandler.getProperty(value, "toString");
+        return toString != null ? String.format("%s (%s)", stringValue, toString) : stringValue;
+    }
+
 
     private static String generateIndentation(final int spaces) {
         String spaceString = EMPTY_STRING;
