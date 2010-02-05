@@ -37,6 +37,14 @@ public class Neo4jGraph implements Graph {
             this.tx = neo.beginTx();
         }
     }
+    public Neo4jGraph(final GraphDatabaseService neo) {
+        this.neo=neo;
+        this.directory=((EmbeddedGraphDatabase)neo).getStoreDir();
+        this.automaticTransactions=false;
+        LuceneIndexService indexService = new LuceneIndexService(neo);
+        indexService.setIsolation(Isolation.SAME_TX);
+        this.index = new Neo4jIndex(indexService, this);
+    }
 
     public Index getIndex() {
         return this.index;
